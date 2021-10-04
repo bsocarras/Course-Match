@@ -154,7 +154,8 @@ def pref_att(num_agents, num_items, p):
 # Takes 2-D np.ndarray vals matrix, 1-D np.ndarray course caps matrix, and int of agents left to stop recursing
 # Returns 2-D np.ndarray Probability Distribution
 def RPIk_recurse(vals, selected_indices, cap, k, n_knot):
-    
+    print("\n-----------------\n")
+    print("cap: ", cap)
     # Algorithm Start:
     n_hat = vals.shape[0]-len(selected_indices)
     if n_hat <= n_knot:
@@ -172,13 +173,11 @@ def RPIk_recurse(vals, selected_indices, cap, k, n_knot):
         # Partial Allocation Mechanism
         P_selected = PA(selected, cap)
         
-
-        
         # Tweaking PA Mechanism Output
         total_alloc = np.sum(P_selected, axis=1)
+                    
         g = np.sum(np.multiply(P_selected, k[new_indices]), axis=1)
-
-
+#         kq_sums = np.zeros(P_selected.shape[1]) ### TO BE REMOVED
         for i in range(P_selected.shape[0]):
             first_part = 1.0-g[i]
 #             if np.isclose(first_part, 0.):
@@ -187,8 +186,11 @@ def RPIk_recurse(vals, selected_indices, cap, k, n_knot):
             for j in range(P_selected.shape[1]):
                 second_part = cap[j]/n_hat
                 P_selected[i][j] = float(P_selected[i][j] * k[new_indices[i]][j] + first_part*second_part)
-                
-
+#                 kq_sums[j] += P_selected[i][j] * k[new_indices[i]][j]
+        
+#         for j in range(P_selected.shape[1]):
+#             if np.sum(g) > cap[j] - kq_sums[j]:### TO BE REMOVED
+#                 raise Exception("We got em. g sum: ", np.sum(g), " | kq sum: ", kq_sums[j])
 
         # Recursively calling RPI_recurse
         cap = cap - np.sum(P_selected, axis=0)
@@ -235,14 +237,9 @@ def RPIk(v, n_knot):
         z = np.zeros(shape=(num_items-num_agents, num_items))
         v = np.concatenate((v, z), axis=0)
         
-    # k calculation
-    k = np.zeros(shape=v.shape)
-    v_item_sums = np.sum(v, axis=0)
-    for i in range(num_agents):
-        for j in range(num_items):
-            k[i][j] = float(v[i][j]/v_item_sums[j])
+    
 #     print("k:\n", k)
-        
+     
     return RPIk_recurse(v, [], np.ones(v.shape[1]), k, n_knot)
 
 

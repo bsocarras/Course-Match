@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[14]:
+# In[2]:
 
 
 import numpy as np
@@ -11,10 +11,10 @@ import sys
 
 import NBS
 
-np.set_printoptions(precision=3)
+# np.set_printoptions(precision=3)
 
 
-# In[6]:
+# In[3]:
 
 
 # Takes np.ndarray of values for n agents
@@ -43,10 +43,10 @@ def random_subset(vals, selected_indices):
     return selected_agents, new_indices
 
 
-# In[7]:
+# In[4]:
 
 
-def PA(selected, cap):
+def PA(selected, cap, n_hat):
     num_agents = selected.shape[0]
     deleted = []
     # Checking for indifferent agents
@@ -67,13 +67,19 @@ def PA(selected, cap):
         # Calculating outside option
         O = np.zeros(selected.shape[0])
         for i in range(O.size):
-            O[i] = np.sum(np.multiply(selected[i], cap)) / selected.shape[1]
+            O[i] = np.sum(np.multiply(selected[i], cap)) / n_hat
 
         # Nash Social Welfare Optimal Probability Matrix
         nsw = NBS.NBS(selected, O, cap)
+#         if not(np.allclose(np.sum(nsw, axis=1), np.ones(nsw.shape[0]))):
+#             raise Exception(np.sum(nsw, axis=1))
+        print("nsw: ", nsw)
         if nsw is None:
+            print("selected: \n", selected)
+            print("O: ", O)
+            print("cap: ", cap)
             raise Exception("NBS returned None.")
-
+        print("First nsw done")
         # NSW Optimal Utility
         util = np.sum(np.multiply(nsw, selected), axis=1)
 
@@ -86,8 +92,11 @@ def PA(selected, cap):
 
                 i_exclusive = NBS.NBS(new_sel, new_O, cap)
                 if i_exclusive is None:
+                    print("new sel: \n", new_sel)
+                    print("new O: ", new_O)
+                    print("cap: ", cap)
                     raise Exception("NBS returned None while calculating f_{",i,"}.")
-
+                print("Done with nsw iteration ", i)
                 new_util = np.sum(np.multiply(new_sel, i_exclusive), axis=1)
 
                 num = 1
@@ -106,7 +115,7 @@ def PA(selected, cap):
             # Applying f to each agent
             for i in range(nsw.shape[0]):
                 nsw[i] *= f[i]
-
+                print("f_",i,": ", f[i])
     
     # Adding back indifferent agents if necessary
     if len(deleted) == 0:
@@ -130,7 +139,7 @@ def PA(selected, cap):
     return probs
 
 
-# In[8]:
+# In[5]:
 
 
 def pref_att(num_agents, num_items, p):
@@ -146,13 +155,13 @@ def pref_att(num_agents, num_items, p):
     return array
 
 
-# In[26]:
+# In[6]:
 
 
 # Takes 2-D np.ndarray vals matrix, 1-D np.ndarray course caps matrix, and int of agents left to stop recursing
 # Returns 2-D np.ndarray Probability Distribution
 def RPI_recurse(vals, selected_indices, cap, n_knot):
-    
+    print("\n------------------\nLap")
     # Algorithm Start:
     n_hat = vals.shape[0]-len(selected_indices)
     if n_hat < n_knot:
@@ -165,18 +174,19 @@ def RPI_recurse(vals, selected_indices, cap, n_knot):
     else:
         # Seperate half of agents randomly
         selected, new_indices = random_subset(vals, selected_indices)
-        
+       
         # Partial Allocation Mechanism
-        P_selected = PA(selected, cap)
+        P_selected = PA(selected, cap, n_hat)
+#         print("P_selected: ", P_selected)
         
         # Tweaking PA Mechanism Output
         total_alloc = np.sum(P_selected, axis=1)
-
+        print("total alloc:", total_alloc)
         for i in range(P_selected.shape[0]):
             first_part = (1.0-float(total_alloc[i]/2))
             for j in range(P_selected.shape[1]):
                 second_part = cap[j]/(n_hat)
-                P_selected[i][j] = float(P_selected[i][j]/2) + first_part*second_part
+                P_selected[i][j] = float(P_selected[i][j] / 2) + first_part*second_part
 
         # Recursively calling RPI_recurse
         cap = cap - np.sum(P_selected, axis=0)
@@ -188,12 +198,12 @@ def RPI_recurse(vals, selected_indices, cap, n_knot):
         return np.add(RPI_recurse(vals, selected_indices, cap, n_knot),  P)
 
 
-# In[10]:
+# In[7]:
 
 
 # Takes 2-D np.ndarray value matrix and int lowest n
 # Returns 2-D np.ndarray probability matrix
-def RPI(v, n_knot):
+def RPI(v, n_knot, caps):
     #---------------------------------------------INVARIANT TESTS-------------------------------------------
     if type(v) != np.ndarray:
         raise Exception("v must be type np.ndarray. Current type: ", type(v))
@@ -203,8 +213,8 @@ def RPI(v, n_knot):
     if np.ndim(v) != 2:
         raise Exception("v must be a 2-D np.ndarray. Current shape: ", v.shape)
         
-    if n_knot < 4:
-        raise Exception("n_knot must be >= 4. Current n_knot: ", n_knot)
+#     if n_knot < 4:
+#         raise Exception("n_knot must be >= 4. Current n_knot: ", n_knot)
     #-----------------------------------------------TESTS END-----------------------------------------------
     
     # Making sure v has dimensions n x n
@@ -214,12 +224,15 @@ def RPI(v, n_knot):
     if num_agents > num_items: 
         z = np.zeros(shape=(num_agents, num_agents-num_items))
         v = np.concatenate((v, z), axis=1)
+        caps = np.concatenate((caps, np.ones(num_agents-num_items)*num_agents))
         
     elif num_items > num_agents:
         z = np.zeros(shape=(num_items-num_agents, num_items))
         v = np.concatenate((v, z), axis=0)
         
-    return RPI_recurse(v, [], np.ones(v.shape[1]), n_knot)
+    p = RPI_recurse(v, [], caps, n_knot)
+    
+    return p[0:num_agents][0:num_items]
 
 
 # In[ ]:
